@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+# Measurement data stays out of the repo
+*.db
+*.db-shm
+*.db-wal
+*.csv
+server.log
+.vscode/
+.idea/

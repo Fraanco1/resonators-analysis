@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resonator Fits</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/vendor/plotly.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <h1>Resonator Fits</h1>
+  <div class="db-pick">
+    <label for="db">Database</label>
+    <select id="db"></select>
+  </div>
+  <span id="status" class="status" role="status" aria-live="polite"></span>
+</header>
+
+<main class="layout">
+  <!-- ── Sidebar: experiment / run browser ─────────────────────────────── -->
+  <aside class="sidebar">
+    <section>
+      <label for="exp">Experiment</label>
+      <select id="exp"></select>
+    </section>
+    <section class="runs-section">
+      <div class="row-between">
+        <label>Runs</label>
+        <span id="runCount" class="muted"></span>
+      </div>
+      <div class="runs-wrap">
+        <table id="runs" class="runs">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="hint">↑/↓ to step through runs</p>
+    </section>
+    <section id="traceSection" hidden>
+      <label for="trace">Trace</label>
+      <select id="trace"></select>
+    </section>
+    <section>
+      <label>Run parameters</label>
+      <dl id="runParams" class="params"></dl>
+    </section>
+  </aside>
+
+  <!-- ── Main area ─────────────────────────────────────────────────────── -->
+  <div class="main">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Drag mode">
+        <button id="modeSelect" class="seg-btn active" title="Drag horizontally on a plot to choose the fit range (S)">Select range</button>
+        <button id="modeZoom" class="seg-btn" title="Drag to zoom (Z)">Zoom</button>
+        <button id="modePan" class="seg-btn" title="Drag to pan (P)">Pan</button>
+      </div>
+      <button id="resetZoom" class="btn ghost" title="Show whole trace (R)">Reset zoom</button>
+      <span class="sep"></span>
+      <label class="inline">f₁ <input id="f1" type="text" inputmode="decimal" placeholder="GHz"></label>
+      <label class="inline">f₂ <input id="f2" type="text" inputmode="decimal" placeholder="GHz"></label>
+      <button id="clearSel" class="icon-btn" title="Clear selection (Esc)" aria-label="Clear selection">✕</button>
+      <button id="useView" class="btn ghost" title="Select exactly the frequency range visible on screen (zoom in on a resonance, then press this and Fit range)">Select visible range</button>
+      <button id="fitBtn" class="btn primary">Fit range</button>
+      <label class="inline check"><input id="fitOnSelect" type="checkbox"> fit on select</label>
+    </div>
+
+    <div id="plot" class="plot selecting"></div>
+
+    <div class="panels">
+      <!-- Fit options + auto detection -->
+      <section class="card">
+        <h2>Fit options</h2>
+        <div class="form-grid">
+          <label for="port">Port</label>
+          <select id="port">
+            <option value="notch">Notch (S21, side-coupled)</option>
+            <option value="reflection">Reflection (S11)</option>
+          </select>
+          <label for="guessdelay">Cable delay</label>
+          <select id="guessdelay">
+            <option value="guess">Fit (guessdelay)</option>
+            <option value="noguess">Fit, no initial guess</option>
+            <option value="fixed">Fixed value</option>
+          </select>
+          <label for="delayNs">Fixed delay (ns)</label>
+          <input id="delayNs" type="number" step="any" placeholder="e.g. 0" disabled>
+        </div>
+
+        <h2>Auto-detect</h2>
+        <div class="form-grid">
+          <label for="minDepth" title="Minimum dip depth below the baseline. Blank = 6× the trace noise.">Min depth (dB)</label>
+          <input id="minDepth" type="number" step="any" placeholder="auto">
+          <label for="winFactor" title="Fit window half-width in units of the dip FWHM (clipped at neighbours).">Window (× FWHM)</label>
+          <input id="winFactor" type="number" step="any" value="8" min="1">
+          <label for="basePts" title="Running-median baseline window in points. Blank = automatic.">Baseline (pts)</label>
+          <input id="basePts" type="number" step="1" placeholder="auto">
+        </div>
+        <div class="btn-row">
+          <button id="detectBtn" class="btn">Detect</button>
+          <button id="autofitBtn" class="btn primary">Detect &amp; fit all</button>
+        </div>
+        <p id="detectInfo" class="muted small"></p>
+      </section>
+
+      <!-- Results for this run -->
+      <section class="card grow">
+        <div class="row-between">
+          <h2>Fits — this trace</h2>
+          <div class="btn-row">
+            <button id="clearFits" class="btn ghost small">Clear</button>
+            <button id="exportRun" class="btn ghost small">Export CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="fitTable" class="results">
+            <thead>
+              <tr>
+                <th>#</th><th>f<sub>r</sub> (GHz)</th><th>Q<sub>L</sub></th><th>Q<sub>i</sub></th><th>Q<sub>c</sub></th>
+                <th>χ²</th><th>window (kHz)</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <p id="fitEmpty" class="empty">Drag across a resonance on the plot, or use <b>Detect &amp; fit all</b>.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- Batch over the whole experiment -->
+    <section class="card batch">
+      <div class="row-between wrap">
+        <h2>Batch — every run in the experiment</h2>
+        <div class="btn-row">
+          <label class="inline check" title="Shift each window onto the local minimum in every run (follows small frequency drifts)"><input id="recenter" type="checkbox" checked> recenter windows</label>
+          <button id="batchBtn" class="btn primary" title="Fits the windows of the current trace's fits in every run of the experiment">Fit all runs</button>
+          <button id="batchStop" class="btn ghost" hidden>Stop</button>
+          <button id="exportBatch" class="btn ghost" disabled>Export CSV</button>
+        </div>
+      </div>
+      <p class="muted small">Uses the fit windows from the current trace as references (fit or auto-detect one run first). Each window keeps its resonance number across runs.</p>
+      <div id="batchProgress" class="progress" hidden><div class="bar"></div><span class="label"></span></div>
+
+      <div id="batchBody" hidden>
+        <div class="toolbar compact">
+          <label class="inline">Y <select id="bY">
+            <option value="Qi">Qi</option><option value="Qc">Qc</option><option value="QL">QL</option>
+            <option value="fr_shift">fr shift (kHz)</option><option value="chi_square">χ²</option>
+          </select></label>
+          <label class="inline">X <select id="bX"></select></label>
+          <label class="inline">− <select id="bX2"><option value="">(nothing)</option></select></label>
+          <label class="inline check"><input id="bLog" type="checkbox" checked> log Y</label>
+          <label class="inline check"><input id="bErr" type="checkbox" checked> error bars</label>
+          <label class="inline check" title="Hide fits with Qi ≤ 0, errors > 100% or fr outside the window"><input id="bHideFlag" type="checkbox" checked> hide flagged fits</label>
+        </div>
+        <div class="res-chips" id="resChips" aria-label="Resonances shown"></div>
+        <div id="batchPlot" class="plot small"></div>
+        <details>
+          <summary>Table</summary>
+          <div class="table-wrap tall"><table id="batchTable" class="results"><thead></thead><tbody></tbody></table></div>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
