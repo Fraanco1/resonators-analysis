@@ -27,9 +27,9 @@ warnings.filterwarnings("ignore")
 
 CASES = {
     "critical": Resonance(Qi=1e5, Qc=1e5),
-    "under-coupled x10": Resonance(Qi=1e6, Qc=1e5),
-    "over-coupled x10": Resonance(Qi=1e4, Qc=1e5),
-    "over-coupled x30": Resonance(Qi=3e4, Qc=1e3),
+    "over-coupled x10": Resonance(Qi=1e6, Qc=1e5),       # Qc < Qi: deep dip
+    "under-coupled x10": Resonance(Qi=1e4, Qc=1e5),     # Qi < Qc: shallow dip
+    "over-coupled x30": Resonance(Qi=3e4, Qc=1e3),      # Qc << Qi
     "asymmetric phi=+0.4": Resonance(Qi=2e5, Qc=1e5, phi=0.4),
     "asymmetric phi=-0.6": Resonance(Qi=2e5, Qc=1e5, phi=-0.6),
     "low Q": Resonance(fr=4e9, Qi=3e3, Qc=2e3),
@@ -75,7 +75,7 @@ def test_fixed_delay_is_used():
     assert o["Qi"] == pytest.approx(res.Qi, rel=1e-4)
 
 
-@pytest.mark.parametrize("name", ["critical", "under-coupled x10", "asymmetric phi=+0.4",
+@pytest.mark.parametrize("name", ["critical", "over-coupled x10", "asymmetric phi=+0.4",
                                   "high Q", "over-coupled x30", "reflection over-coupled"])
 def test_noisy_unbiased_with_honest_errors(name):
     res = CASES[name]
@@ -102,9 +102,10 @@ def test_noisy_unbiased_with_honest_errors(name):
     assert 0.85 < np.median(ratio) < 1.15
 
 
-def test_noisy_over_coupled_robust():
-    """Strongly over-coupled notch: the circle fit alone sometimes misses; the result must not."""
-    res = CASES["over-coupled x10"]
+def test_noisy_under_coupled_robust():
+    """Strongly under-coupled notch (shallow dip, tiny circle in the noise): the circle fit
+    alone sometimes misses; the result must not."""
+    res = CASES["under-coupled x10"]
     rng = np.random.default_rng(2)
     bad = 0
     for _ in range(60):

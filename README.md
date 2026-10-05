@@ -75,11 +75,12 @@ pytest tests/          # ~30 s
 ```
 
 `tests/test_fits.py` fits synthetic resonances with known parameters, generated from the same model
-(`tests/synthetic.py`), over coupling regimes from 30× over- to 10× under-coupled, asymmetric (φ ≠ 0),
+(`tests/synthetic.py`), over coupling regimes from 30× over-coupled (Qc ≪ Qi) to 10× under-coupled (Qi ≪ Qc), asymmetric (φ ≠ 0),
 low and high Q, notch and reflection, with and without cable delay. It checks that noise-free data is
 recovered exactly, that noisy fits are unbiased with error bars matching the scatter (pull std ≈ 1),
 that a Kerr-distorted dip is flagged, that auto-detect finds every resonance of a multi-resonance trace
 with baseline ripple, and the full path QCoDeS database → web API → fit results.
+`python tests/plot_synthetic.py` draws the test resonances with their fits (`tests/synthetic_fits.png`).
 
 ## Other databases
 
