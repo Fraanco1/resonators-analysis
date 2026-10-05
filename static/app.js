@@ -76,7 +76,7 @@ function parseGHz(s) {
 
 function downloadCSV(name, rows) {
   if (!rows.length) return;
-  const cols = Object.keys(rows[0]);
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];   // a failed first row has fewer keys
   const esc = (v) => (v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v);
   const text = [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
   const a = document.createElement("a");
@@ -731,7 +731,8 @@ function renderBatch() {
 
 function renderBatchTable() {
   const rows = S.batch.rows;
-  const cols = ["run_id", "trace", "resonance", ...Object.keys(rows[0] || {}).filter((k) =>
+  const allKeys = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+  const cols = ["run_id", "trace", "resonance", ...allKeys.filter((k) =>
     !["run_id", "trace", "resonance", "ok", "error", "port", "phi0", "delay_s", "f1_GHz", "f2_GHz", "n_points"].includes(k)), "error"];
   const uniq = [...new Set(cols)];
   $("batchTable").querySelector("thead").innerHTML = `<tr>${uniq.map((c) => `<th>${c}</th>`).join("")}</tr>`;
@@ -762,6 +763,12 @@ function wire() {
   $("fitOnSelect").checked = localStorageGet("fitOnSelect") === "1";
   $("fitOnSelect").onchange = (e) => localStorageSet("fitOnSelect", e.target.checked ? "1" : "0");
   $("guessdelay").onchange = () => { $("delayNs").disabled = $("guessdelay").value !== "fixed"; };
+  $("port").onchange = () => {
+    // Reflection fits never use the delay guess (it breaks on the 2π phase turn).
+    const refl = $("port").value === "reflection", g = $("guessdelay");
+    g.querySelector('option[value="guess"]').disabled = refl;
+    if (refl && g.value === "guess") { g.value = "noguess"; g.onchange(); }
+  };
   $("detectBtn").onclick = detect;
   $("autofitBtn").onclick = autofit;
   $("clearFits").onclick = () => { storeFits([]); S.highlight = null; renderMainPlot(); renderFitTable(); };

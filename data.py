@@ -62,9 +62,12 @@ def list_experiments(con):
 # ── Parameter classification ──────────────────────────────────────────────────
 
 def _paramspecs(con, run_id):
-    tbl, params, desc = con.execute(
+    row = con.execute(
         "SELECT result_table_name, parameters, run_description FROM runs WHERE run_id=?", (run_id,)
     ).fetchone()
+    if row is None:
+        raise KeyError(f"Run {run_id} does not exist in this database")
+    tbl, params, desc = row
     specs = {}
     try:
         d = json.loads(desc)
@@ -91,13 +94,19 @@ def _paramspecs(con, run_id):
     return tbl, specs
 
 
+def _q(name):
+    """Quote an SQL identifier (names come from the database itself, so escape embedded quotes)."""
+    return '"' + str(name).replace('"', '""') + '"'
+
+
 def _text(ps):
     return f'{ps["name"]} {ps.get("label") or ""}'
 
 
 def classify(specs):
     dependents = {n: ps for n, ps in specs.items() if ps.get("depends_on")}
-    setpoints = {s for ps in dependents.values() for s in ps["depends_on"]}
+    # Ordered by first appearance (column order), so the choice below is deterministic.
+    setpoints = list(dict.fromkeys(s for ps in dependents.values() for s in ps["depends_on"]))
     scalars = [n for n in specs if n not in dependents and n not in setpoints]
 
     def is_freq(n):
@@ -106,7 +115,7 @@ def classify(specs):
 
     freq = next((s for s in setpoints if is_freq(s)), None)
     if freq is None and setpoints:
-        freq = sorted(setpoints)[0]
+        freq = setpoints[0]
     outer = sorted(s for s in setpoints if s != freq)
 
     roles = {"freq": freq, "outer": outer, "scalars": scalars,
@@ -140,7 +149,7 @@ def _scalar_values(con, tbl, specs, names):
     out = {}
     for n in names:
         try:
-            row = con.execute(f'SELECT "{n}" FROM "{tbl}" WHERE "{n}" IS NOT NULL LIMIT 1').fetchone()
+            row = con.execute(f"SELECT {_q(n)} FROM {_q(tbl)} WHERE {_q(n)} IS NOT NULL LIMIT 1").fetchone()
         except sqlite3.OperationalError:
             continue
         if row is None:
@@ -181,8 +190,8 @@ def list_runs(con, exp_id):
 def _long_form(con, tbl, name, setpoints):
     """All values of `name` with its setpoints, flattened (works for array and numeric storage)."""
     cols = [name] + list(setpoints)
-    sel = ", ".join(f'"{c}"' for c in cols)
-    rows = con.execute(f'SELECT {sel} FROM "{tbl}" WHERE "{name}" IS NOT NULL ORDER BY id').fetchall()
+    sel = ", ".join(_q(c) for c in cols)
+    rows = con.execute(f"SELECT {sel} FROM {_q(tbl)} WHERE {_q(name)} IS NOT NULL ORDER BY id").fetchall()
     chunks = [[] for _ in cols]
     for row in rows:
         vals = [_decode(v) for v in row]

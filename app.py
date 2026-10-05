@@ -9,6 +9,8 @@ The databases are opened read-only.
 import argparse
 import base64
 import os
+import sqlite3
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -17,7 +19,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import data
 from fitting import detect_resonances, fit_resonance, recenter_window
@@ -29,8 +31,15 @@ app = FastAPI(title="Resonator fits")
 cache = data.RunCache()
 
 
-def _databases():
-    return data.find_databases(DB_ROOT)
+_db_list = {"root": None, "t": 0.0, "dbs": []}
+
+
+def _databases(max_age=10.0):
+    """*.db files under DB_ROOT; the directory walk is cached for a few seconds."""
+    now = time.monotonic()
+    if _db_list["root"] != DB_ROOT or now - _db_list["t"] > max_age:
+        _db_list.update(root=DB_ROOT, t=now, dbs=data.find_databases(DB_ROOT))
+    return _db_list["dbs"]
 
 
 def _db_path(db: str) -> str:
@@ -46,8 +55,10 @@ def _run(db: str, run_id: int):
     con = data.connect(path)
     try:
         return cache.get(path, con, run_id)
-    except (ValueError, KeyError) as e:
-        raise HTTPException(422, str(e))
+    except KeyError as e:
+        raise HTTPException(404, str(e.args[0]) if e.args else "Not found")
+    except (ValueError, sqlite3.Error) as e:
+        raise HTTPException(422, f"Could not read run {run_id}: {e}")
     finally:
         con.close()
 
@@ -150,7 +161,7 @@ class AutoFitRequest(BaseModel):
     fit: FitOptions = FitOptions()
     # If given, fit these windows instead of detecting (e.g. reuse one run's windows on
     # every run of a power sweep); recenter shifts each onto the local minimum first.
-    windows: Optional[List[List[float]]] = None
+    windows: Optional[List[List[float]]] = Field(None, max_length=500)
     recenter: bool = True
     include_model: bool = True
 

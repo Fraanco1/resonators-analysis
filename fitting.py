@@ -46,6 +46,8 @@ def fit_resonance(freq, mag_db, phase_deg, f1, f2, port="notch", guessdelay=True
         warnings.simplefilter("ignore")
         if port == "reflection":
             p = circuit.reflection_port(f, z)
+            # No linear-phase delay guess here: the 2*pi phase turn of a reflection
+            # resonance throws it off (resonator_tools hardcodes guessdelay=False).
             p.autofit(electric_delay=electric_delay)
         else:
             p = circuit.notch_port(f, z)

@@ -118,7 +118,8 @@ class reflection_port(circlefit, save_load, plotting, calibration):
 		delay, amp_norm, alpha, fr, Ql, A2, frcal =\
 				self.do_calibration(self.f_data[self._fid],self.z_data_raw[self._fid],ignoreslope=True,guessdelay=False,fixed_delay=electric_delay)
 		self.z_data = self.do_normalization(self.f_data,self.z_data_raw,delay,amp_norm,alpha,A2,frcal)
-		self.fitresults = self.circlefit(self.f_data[self._fid],self.z_data[self._fid],fr,Ql,refine_results=False,calc_errors=True)
+		# reflection_port.circlefit returns (results, xc, yc, r0)
+		self.fitresults = self.circlefit(self.f_data[self._fid],self.z_data[self._fid],fr,Ql,refine_results=False,calc_errors=True)[0]
 		self.z_data_sim = A2*(self.f_data-frcal)+self._S11_directrefl(self.f_data,fr=self.fitresults["fr"],Ql=self.fitresults["Ql"],Qc=self.fitresults["Qc"],a=amp_norm,alpha=alpha,delay=delay)
 		self.z_data_sim_norm = self._S11_directrefl(self.f_data,fr=self.fitresults["fr"],Ql=self.fitresults["Ql"],Qc=self.fitresults["Qc"],a=1.,alpha=0.,delay=0.)		
 		self._delay = delay
@@ -182,7 +183,8 @@ class notch_port(circlefit, save_load, plotting, calibration):
 				delay = self._guess_delay(f_data,z_data)
 			else:
 				delay=0.
-		delay = self._fit_delay(f_data,z_data,delay,maxiter=500)
+			# Only fit the delay when no fixed value was given (as reflection_port does).
+			delay = self._fit_delay(f_data,z_data,delay,maxiter=500)
 		params = [A1, A2, A3, A4, fr, Ql]
 		return delay, params	
 	
