@@ -85,6 +85,8 @@
           </select>
           <label for="delayNs">Fixed delay (ns)</label>
           <input id="delayNs" type="number" step="any" placeholder="e.g. 0" disabled>
+          <span></span>
+          <label class="inline check" title="Finish with a least-squares fit of the full model (all parameters at once), started from the circle fit. Unbiased, with error bars that match the real scatter. Untick for the plain RFP circle-fit values."><input id="refine" type="checkbox" checked> refine with full-model fit</label>
         </div>
 
         <h2>Auto-detect</h2>
@@ -117,7 +119,7 @@
             <thead>
               <tr>
                 <th>#</th><th>f<sub>r</sub> (GHz)</th><th>Q<sub>L</sub></th><th>Q<sub>i</sub></th><th>Q<sub>c</sub></th>
-                <th>χ²</th><th>window (kHz)</th><th></th>
+                <th title="rms fit residual / noise level. ≈1 means the model describes the data; ≫1 means a distorted (e.g. nonlinear) line shape">res/noise</th><th>window (kHz)</th><th></th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -145,7 +147,7 @@
         <div class="toolbar compact">
           <label class="inline">Y <select id="bY">
             <option value="Qi">Qi</option><option value="Qc">Qc</option><option value="QL">QL</option>
-            <option value="fr_shift">fr shift (kHz)</option><option value="chi_square">χ²</option>
+            <option value="fr_shift">fr shift (kHz)</option><option value="chi_square">χ²</option><option value="resid_noise">residual / noise</option>
           </select></label>
           <label class="inline">X <select id="bX"></select></label>
           <label class="inline">− <select id="bX2"><option value="">(nothing)</option></select></label>

@@ -129,6 +129,7 @@ class FitOptions(BaseModel):
     port: str = "notch"
     guessdelay: bool = True
     electric_delay_ns: Optional[float] = None
+    refine: bool = True
 
 
 class DetectOptions(BaseModel):
@@ -167,7 +168,7 @@ class AutoFitRequest(BaseModel):
 
 
 def _fit_kwargs(o: FitOptions):
-    return dict(port=o.port, guessdelay=o.guessdelay,
+    return dict(port=o.port, guessdelay=o.guessdelay, refine=o.refine,
                 electric_delay=None if o.electric_delay_ns is None else o.electric_delay_ns * 1e-9)
 
 

@@ -439,6 +439,7 @@ function fitOptions() {
     port: $("port").value,
     guessdelay: mode === "guess",
     electric_delay_ns: mode === "fixed" && isFinite(d) ? d : null,
+    refine: $("refine").checked,
   };
 }
 function detectOptions() {
@@ -536,7 +537,7 @@ function renderFitTable() {
     tr.innerHTML = r
       ? `<td${r.flags?.length ? ` class="flag" title="${r.flags.join("; ")}"` : ""}>${i + 1}${r.flags?.length ? " ⚠" : ""}</td><td title="± ${fmtNum(r.fr_err)} Hz">${GHz(r.fr).toFixed(7)}</td>
          <td>${fmtPM(r.QL, r.QL_err)}</td><td>${fmtPM(r.Qi, r.Qi_err)}</td><td>${fmtPM(r.Qc, r.Qc_err)}</td>
-         <td>${fmtNum(r.chi_square)}</td><td>${win}</td>`
+         <td title="${r.method || ""}">${r.resid_noise != null ? r.resid_noise.toFixed(1) : "—"}</td><td>${win}</td>`
       : `<td>${i + 1}</td><td class="err" colspan="5">${f.error}</td><td>${win}</td>`;
     const act = document.createElement("td");
     act.innerHTML = `<button class="icon-btn" title="Refit with current options">↻</button><button class="icon-btn" title="Remove">✕</button>`;
@@ -569,7 +570,8 @@ function fitRow(r, extra = {}) {
     ...extra,
     fr_GHz: r.fr != null ? GHz(r.fr) : null, fr_err_Hz: r.fr_err,
     QL: r.QL, QL_err: r.QL_err, Qi: r.Qi, Qi_err: r.Qi_err, Qc: r.Qc, Qc_err: r.Qc_err,
-    chi_square: r.chi_square, phi0: r.phi0, delay_s: r.delay, port: r.port, flags: (r.flags || []).join("; "),
+    chi_square: r.chi_square, resid_noise: r.resid_noise, method: r.method,
+    phi0: r.phi0, delay_s: r.delay, port: r.port, flags: (r.flags || []).join("; "),
     f1_GHz: GHz(r.f1), f2_GHz: GHz(r.f2), n_points: r.n_points,
   };
 }
@@ -642,7 +644,7 @@ function setupBatchControls() {
   const keys = new Set();
   for (const r of S.batch.rows) for (const k of Object.keys(r)) keys.add(k);
   const skip = new Set(["run_id", "trace", "resonance", "ok", "error", "fr_GHz", "fr_err_Hz", "QL", "QL_err", "Qi", "Qi_err", "Qc", "Qc_err",
-    "chi_square", "phi0", "delay_s", "port", "f1_GHz", "f2_GHz", "n_points", "flags"]);
+    "chi_square", "resid_noise", "method", "phi0", "delay_s", "port", "f1_GHz", "f2_GHz", "n_points", "flags"]);
   const vars = [...keys].filter((k) => !skip.has(k));
   // Prefer a variable that actually varies across runs.
   const varies = (k) => new Set(S.batch.rows.map((r) => r[k])).size > 1;
@@ -688,7 +690,7 @@ function renderBatch() {
   renderChips();
   const T = plotTheme();
   const yk = $("bY").value, xk = $("bX").value, x2k = $("bX2").value;
-  const logY = $("bLog").checked && yk !== "fr_shift", showErr = $("bErr").checked, hideFlagged = $("bHideFlag").checked;
+  const logY = $("bLog").checked && !["fr_shift", "resid_noise"].includes(yk), showErr = $("bErr").checked, hideFlagged = $("bHideFlag").checked;
   const xv = (r) => (r[xk] ?? NaN) - (x2k ? (r[x2k] ?? NaN) : 0);
   const errKey = { Qi: "Qi_err", Qc: "Qc_err", QL: "QL_err", fr_shift: "fr_err_Hz" }[yk];
   const traces = [];
@@ -709,7 +711,7 @@ function renderBatch() {
     });
   }
   const ax = { gridcolor: T.grid, zerolinecolor: T.grid, linecolor: T.grid };
-  const yTitle = { Qi: "Qi", Qc: "Qc", QL: "QL", fr_shift: `fr − fr(run ${S.batch.refRun}) (kHz)`, chi_square: "χ²" }[yk];
+  const yTitle = { resid_noise: "residual / noise", Qi: "Qi", Qc: "Qc", QL: "QL", fr_shift: `fr − fr(run ${S.batch.refRun}) (kHz)`, chi_square: "χ²" }[yk];
   Plotly.react("batchPlot", traces, {
     paper_bgcolor: T.paper_bgcolor, plot_bgcolor: T.plot_bgcolor, font: T.font,
     margin: { l: 64, r: 16, t: 16, b: 48 }, hovermode: "closest",

@@ -166,15 +166,31 @@ class circlefit(object):
         return gradient*(-1.)/(np.pi*2.)
     
     def _fit_delay(self,f_data,z_data,delay=0.,maxiter=0):
-        def residuals(p,x,y):
-            phasedelay = p
-            z_data_temp = y*np.exp(1j*(2.*np.pi*phasedelay*x))
-            xc,yc,r0 = self._fit_circle(z_data_temp)
-            err = np.sqrt((z_data_temp.real-xc)**2+(z_data_temp.imag-yc)**2)-r0
-            return err
-        p_final = spopt.leastsq(residuals,delay,args=(f_data,z_data),maxfev=maxiter,ftol=1e-12,xtol=1e-12)
-        return p_final[0][0]
-    
+        """Cable delay that makes the data most circular, searched around `delay`.
+
+        The original leastsq version stalled near its start value: the algebraic circle
+        fit solves for a root with fsolve's default tolerance, so the residuals jitter at
+        small scales and finite-difference derivatives are noise. This is a 1-D problem,
+        so use a derivative-free search instead: a coarse scan of +-half a phase turn
+        across the window around the start value, then Brent's method in the best cell.
+        """
+        f_data = np.asarray(f_data)
+        z_data = np.asarray(z_data)
+        f0 = f_data.mean()
+        span = max(f_data.max()-f_data.min(), 1.)
+        def cost(tau):
+            z_tmp = z_data*np.exp(2j*np.pi*tau*(f_data-f0))
+            xc,yc,r0 = self._fit_circle(z_tmp)
+            return np.sum((np.abs(z_tmp-complex(xc,yc))-r0)**2)
+        half = 0.5/span
+        grid = delay + np.linspace(-half, half, 61)
+        costs = np.array([cost(t) for t in grid])
+        i = int(np.argmin(costs))
+        step = grid[1]-grid[0]
+        res = spopt.minimize_scalar(cost, bounds=(grid[i]-step, grid[i]+step), method="bounded",
+                                    options={"xatol": step*1e-6, "maxiter": max(int(maxiter), 100)})
+        return float(res.x) if res.fun <= costs[i] else float(grid[i])
+
     def _fit_delay_alt_bigdata(self,f_data,z_data,delay=0.,maxiter=0):
         def residuals(p,x,y):
             phasedelay = p

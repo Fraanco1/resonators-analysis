@@ -39,7 +39,23 @@ They are hidden in the batch plot by default but kept in the table and CSV.
 * **Port:** notch (side-coupled, S21; Q_i is the diameter-corrected `Qi_dia_corr`, as in RFP) or
   reflection (S11).
 * **Cable delay:** fitted with an initial guess (`guessdelay=True`, RFP default), fitted without the
-  guess, or fixed to a value in ns.
+  guess, or fixed to a value in ns. (Reflection fits never use the guess.)
+* **Refine with full-model fit** (on by default): the `resonator_tools` circle fit is used as the
+  starting point of a least-squares fit of the complete model (fr, Q_L, |Q_c|, φ, delay, amplitude,
+  phase) to the complex data. The circle fit determines delay, circle and phase in separate steps, so a
+  small delay error leaks into Q, worst for symmetric (φ ≈ 0) resonances; the full fit removes that and
+  its covariance gives error bars that match the real scatter. If the circle fit lands far off (common for
+  strongly over-coupled resonances in noise) the refinement also starts from values read off the data and
+  keeps the best fit. Untick it to get the plain RFP circle-fit numbers.
+
+### Goodness of fit: `res/noise`
+
+Each fit reports the rms residual divided by the noise level of the data (estimated from
+point-to-point scatter). **≈ 1 means the model describes the measurement to within the noise.**
+Values ≫ 1 mean the line shape is not a Lorentzian, typically a resonator driven into the nonlinear
+(Kerr) regime; such fits are flagged ⚠ above 3. In the 16-pixel Al chip data, experiment 9 (30 dB
+attenuation) gives res/noise = 1.0 for every resonance at low power, while experiment 10 (0 dB) is
+already distorted at its lowest power. The batch plot can show res/noise against power.
 
 ### Auto-detect options
 
@@ -50,6 +66,20 @@ All defaults adapt to each trace; change them when the defaults miss something.
 | Min depth (dB) | 6 × trace noise (≥ 0.3 dB) | minimum dip depth below the baseline |
 | Window (× FWHM) | 8 | fit window half-width, clipped halfway to the neighbouring resonance |
 | Baseline (pts) | automatic | running-median window; grown automatically until it is much wider than the widest dip, and replaced by a straight line through the edges for zoomed single-resonance sweeps |
+
+## Tests
+
+```bash
+pip install pytest httpx
+pytest tests/          # ~30 s
+```
+
+`tests/test_fits.py` fits synthetic resonances with known parameters, generated from the same model
+(`tests/synthetic.py`), over coupling regimes from 30× over- to 10× under-coupled, asymmetric (φ ≠ 0),
+low and high Q, notch and reflection, with and without cable delay. It checks that noise-free data is
+recovered exactly, that noisy fits are unbiased with error bars matching the scatter (pull std ≈ 1),
+that a Kerr-distorted dip is flagged, that auto-detect finds every resonance of a multi-resonance trace
+with baseline ripple, and the full path QCoDeS database → web API → fit results.
 
 ## Other databases
 
@@ -75,5 +105,6 @@ in the sidebar shows which ones were picked; adjust the regexes at the top of `d
 | `app.py` | FastAPI server + CLI |
 | `data.py` | read-only QCoDeS SQLite access and parameter classification |
 | `fitting.py` | resonance detection and `resonator_tools` fits |
-| `resonator_tools/` | RFP-Software's fitting library (copy patched for current NumPy) |
+| `resonator_tools/` | RFP-Software's fitting library (patched: NumPy compatibility, robust cable-delay search, fixed-delay and reflection-fit bugs) |
+| `tests/` | synthetic-resonance tests (`pytest tests/`) |
 | `static/` | the web page (Plotly.js is vendored, so it works offline) |
